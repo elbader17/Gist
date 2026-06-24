@@ -1,8 +1,8 @@
 // Command gist is the Gist MCP server entry point.
 //
-// It speaks JSON-RPC 2.0 over stdio and exposes four tools for LLM context
-// optimization: view_file_slim, enforce_budget, align_context_cache, and
-// fetch_diff_context.
+// It speaks JSON-RPC 2.0 over stdio and exposes six tools for LLM context
+// optimization: view_file_slim, enforce_budget, align_context_cache,
+// fetch_diff_context, squeeze_context, and report_savings.
 //
 // Usage:
 //
@@ -18,11 +18,15 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/elbader17/gist/pkg/budget"
+	"github.com/elbader17/gist/pkg/cache"
 	"github.com/elbader17/gist/pkg/config"
 	"github.com/elbader17/gist/pkg/mcp"
+	"github.com/elbader17/gist/pkg/metrics"
 )
 
 func main() {
@@ -82,6 +86,9 @@ func run(args []string, stdin, stdout, stderr *os.File) int {
 		return 1
 	}
 
+	flusher := budget.NewFlusher(store, 2*time.Second)
+	defer flusher.Stop()
+
 	b := budget.NewBudget(budget.Options{
 		LoopThreshold:         cfg.LoopDetectionThreshold,
 		MaxCostUSD:            cfg.MaxSessionCostUSD,
@@ -89,9 +96,26 @@ func run(args []string, stdin, stdout, stderr *os.File) int {
 		PromptPricePerMillion: cfg.Pricing.PromptPerMillion,
 		CostFn:                cfg.CostForTokens,
 		Store:                 store,
+		Flusher:               flusher,
 	})
 
-	dispatcher := &mcp.Dispatcher{Cfg: cfg, Budget: b}
+	astCache := cache.New(cfg.CacheMaxEntries, cfg.CacheMaxBytes)
+
+	metricsDir, err := config.ConfigDir()
+	if err != nil {
+		fmt.Fprintln(stderr, "gist: resolve metrics dir:", err)
+		return 1
+	}
+	metricsPath := filepath.Join(metricsDir, "metrics.json")
+	recorder := metrics.NewRecorder(metricsPath)
+	defer recorder.Stop()
+
+	dispatcher := &mcp.Dispatcher{
+		Cfg:     cfg,
+		Budget:  b,
+		Cache:   astCache,
+		Metrics: recorder,
+	}
 	server := mcp.NewServer(stdin, stdout, mcp.DefaultTools(), dispatcher.Handle)
 	if err := server.Run(); err != nil {
 		fmt.Fprintln(stderr, "gist: server:", err)

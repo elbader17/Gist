@@ -37,6 +37,8 @@ type Config struct {
 	DefaultTokenizerEncoding string  `json:"default_tokenizer_encoding"`
 	LoopDetectionThreshold   int     `json:"loop_detection_threshold"`
 	CacheAlignmentEnabled    bool    `json:"cache_alignment_enabled"`
+	CacheMaxEntries          int     `json:"cache_max_entries"`
+	CacheMaxBytes            int     `json:"cache_max_bytes"`
 	Pricing                  Pricing `json:"pricing"`
 }
 
@@ -48,6 +50,8 @@ func Default() *Config {
 		DefaultTokenizerEncoding: "cl100k_base",
 		LoopDetectionThreshold:   3,
 		CacheAlignmentEnabled:    true,
+		CacheMaxEntries:          256,
+		CacheMaxBytes:            64 * 1024 * 1024,
 		Pricing: Pricing{
 			PromptPerMillion:       3.00,
 			CompletionPerMillion:   15.00,
@@ -97,6 +101,15 @@ func SessionsPath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(dir, "sessions.json"), nil
+}
+
+// MetricsPath returns the absolute path to metrics.json.
+func MetricsPath() (string, error) {
+	dir, err := ConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "metrics.json"), nil
 }
 
 // Load reads config.json from disk. If the file does not exist, a default

@@ -2,10 +2,14 @@ package mcp
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/elbader17/gist/pkg/budget"
+	"github.com/elbader17/gist/pkg/cache"
 	"github.com/elbader17/gist/pkg/config"
+	"github.com/elbader17/gist/pkg/metrics"
 )
 
 func newDispatcher(t *testing.T) (*Dispatcher, *budget.Store) {
@@ -25,6 +29,14 @@ func newDispatcher(t *testing.T) (*Dispatcher, *budget.Store) {
 		Store:                 store,
 	})
 	return &Dispatcher{Cfg: cfg, Budget: b}, store
+}
+
+func newDispatcherFull(t *testing.T) *Dispatcher {
+	t.Helper()
+	d, _ := newDispatcher(t)
+	d.Cache = cache.New(64, 1<<20)
+	d.Metrics = metrics.NewRecorder("")
+	return d
 }
 
 func TestDispatcherViewFileSlimMissingArgs(t *testing.T) {
@@ -207,5 +219,119 @@ func TestDispatcherEnforceBudgetResultJSON(t *testing.T) {
 	}
 	if parsed["allowed"] != true {
 		t.Error("expected allowed=true")
+	}
+}
+
+func TestDispatcherViewFileSlimWithCacheHit(t *testing.T) {
+	d := newDispatcherFull(t)
+	dir := t.TempDir()
+	p := filepath.Join(dir, "f.go")
+	if err := os.WriteFile(p, []byte("package x\nfunc A() int { return 1 + 1 + 1 }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	args := map[string]interface{}{"file_path": p, "session_id": "cache-test"}
+	if _, err := d.viewFileSlim(args); err != nil {
+		t.Fatalf("first call: %v", err)
+	}
+	res, err := d.viewFileSlim(args)
+	if err != nil {
+		t.Fatalf("second call: %v", err)
+	}
+	if !contains(res.Content[0].Text, "cache_hit") {
+		t.Errorf("expected cache_hit=true on second call, got: %s", res.Content[0].Text)
+	}
+}
+
+func TestDispatcherSqueezeContext(t *testing.T) {
+	d := newDispatcherFull(t)
+	dir := t.TempDir()
+	p := filepath.Join(dir, "f.go")
+	if err := os.WriteFile(p, []byte("package x\nfunc A() int { return 1 + 1 + 1 + 1 }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := d.squeezeContext(map[string]interface{}{
+		"session_id":     "sq-1",
+		"system_prompts": []interface{}{"you are concise"},
+		"static_files":   []interface{}{map[string]interface{}{"path": p}},
+		"dynamic_input":  "the error",
+		"max_tokens":     100,
+	})
+	if err != nil {
+		t.Fatalf("squeeze: %v", err)
+	}
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(res.Content[0].Text), &parsed); err != nil {
+		t.Fatalf("response not JSON: %v", err)
+	}
+	if parsed["combined"] == nil || parsed["combined"] == "" {
+		t.Error("expected non-empty combined")
+	}
+	if parsed["markdown"] == nil || !contains(parsed["markdown"].(string), "<!-- layer:") {
+		t.Error("expected markdown layer markers")
+	}
+}
+
+func TestDispatcherSqueezeContextNoStatic(t *testing.T) {
+	d := newDispatcherFull(t)
+	_, err := d.squeezeContext(map[string]interface{}{
+		"system_prompts": []interface{}{"x"},
+		"dynamic_input":  "y",
+	})
+	if err != nil {
+		t.Fatalf("squeeze: %v", err)
+	}
+}
+
+func TestDispatcherSqueezeContextNoInputs(t *testing.T) {
+	d := newDispatcherFull(t)
+	_, err := d.squeezeContext(map[string]interface{}{})
+	if err == nil {
+		t.Fatal("expected error for empty inputs")
+	}
+}
+
+func TestDispatcherReportSavingsNoRecorder(t *testing.T) {
+	d, _ := newDispatcher(t)
+	res, err := d.reportSavings(map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("report: %v", err)
+	}
+	if !contains(res.Content[0].Text, "not configured") {
+		t.Errorf("expected unconfigured message, got %s", res.Content[0].Text)
+	}
+}
+
+func TestDispatcherReportSavingsAggregate(t *testing.T) {
+	d := newDispatcherFull(t)
+	d.Metrics.Record("s", "view_file_slim", 100, 20)
+	res, err := d.reportSavings(map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("report: %v", err)
+	}
+	if !contains(res.Content[0].Text, "saved_tokens") {
+		t.Errorf("expected aggregate, got %s", res.Content[0].Text)
+	}
+}
+
+func TestDispatcherReportSavingsBySession(t *testing.T) {
+	d := newDispatcherFull(t)
+	d.Metrics.Record("alpha", "view_file_slim", 200, 50)
+	res, err := d.reportSavings(map[string]interface{}{"session_id": "alpha"})
+	if err != nil {
+		t.Fatalf("report: %v", err)
+	}
+	if !contains(res.Content[0].Text, "alpha") {
+		t.Errorf("expected alpha in output, got %s", res.Content[0].Text)
+	}
+}
+
+func TestDispatcherReportSavingsMissingSession(t *testing.T) {
+	d := newDispatcherFull(t)
+	res, err := d.reportSavings(map[string]interface{}{"session_id": "ghost"})
+	if err != nil {
+		t.Fatalf("report: %v", err)
+	}
+	if !contains(res.Content[0].Text, "found") {
+		t.Errorf("expected found=false marker, got %s", res.Content[0].Text)
 	}
 }

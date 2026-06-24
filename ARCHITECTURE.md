@@ -9,12 +9,21 @@ cmd/gist
     |
     +-- pkg/config
     +-- pkg/budget  -----> pkg/config
+    +-- pkg/cache
+    +-- pkg/metrics
     +-- pkg/capture
     +-- pkg/mcp     -----> pkg/aligner
                      +--> pkg/ast
                      +--> pkg/budget
+                     +--> pkg/cache
                      +--> pkg/config
                      +--> pkg/diff
+                     +--> pkg/metrics
+                     +--> pkg/squeeze
+    +-- pkg/squeeze -----> pkg/aligner
+                     +--> pkg/ast
+                     +--> pkg/cache
+                     +--> pkg/tokenizer
     +-- pkg/tokenizer
 ```
 
@@ -37,10 +46,12 @@ Client (Claude Code, OpenCode, ...)
 | pkg/mcp (Dispatcher) |  routes to handler by tool name
 +----------------------+
     |
-    +--> view_file_slim   --> pkg/ast   (read file, AST collapse)
-    +--> enforce_budget   --> pkg/budget (counter, loop detector)
-    +--> align_context    --> pkg/aligner (sort + hash + reorder)
-    +--> fetch_diff       --> pkg/diff   (git subprocess)
+    +--> view_file_slim   --> pkg/cache (lookup) --> pkg/ast   (read file, AST collapse)
+    +--> enforce_budget   --> pkg/budget (counter, loop detector, debounced flush)
+    +--> align_context    --> pkg/aligner (sort + hash + reorder, markdown render)
+    +--> fetch_diff       --> pkg/diff   (git subprocess + parallel enrich)
+    +--> squeeze_context  --> pkg/squeeze (compose: cache + ast + aligner + cap)
+    +--> report_savings   --> pkg/metrics (per-session telemetry)
     |
     v
 ToolCallResult {content: [{type:"text", text:"..."}]}
@@ -69,9 +80,10 @@ preserved alongside the original input for later inspection.
 
 ### pkg/config
 
-Holds runtime configuration: cost limits, pricing, tokenizer encoding.
-Persisted as JSON at `~/.config/gist/config.json`. Override directory with
-`GIST_CONFIG_DIR`. Exposes `SetConfigDir` / `ResetConfigDir` for tests.
+Holds runtime configuration: cost limits, pricing, tokenizer encoding,
+cache bounds. Persisted as JSON at `~/.config/gist/config.json`. Override
+directory with `GIST_CONFIG_DIR`. Exposes `SetConfigDir` / `ResetConfigDir`
+for tests.
 
 ### pkg/tokenizer
 
@@ -87,6 +99,9 @@ A real BPE implementation would require downloading the vocab files; this
 approximation is sufficient for budget estimation. Use `Tokenizer.CountReader`
 to stream-count large files without loading them entirely in memory.
 
+`TruncateToTokens` accounts for the trailing marker length so the returned
+string never exceeds the requested cap.
+
 ### pkg/ast
 
 Two-step file slimming:
@@ -101,11 +116,25 @@ Two-step file slimming:
 Struct fields tagged `json:"-"` are filtered out of struct types. Interface
 method bodies are dropped entirely.
 
-For non-Go files, the file is truncated to `max_lines_body` lines (default 50).
+For non-Go files, `PruneNonGo` (in `multi.go`) keeps imports and top-level
+declarations as signatures, replacing bodies with `CollapseMarker`. Supports
+Python, JavaScript, TypeScript, Rust, Java, C/C++, and Ruby. Handles nested
+signatures inside classes by closing the parent body before re-processing.
+Structured formats (json/yaml/toml/markdown) pass through unchanged; unknown
+extensions fall back to a hard truncation cap.
+
+### pkg/cache
+
+LRU cache for pruned file content. Each entry is keyed by `(path, mtime, size)`
+so file updates invalidate automatically. Bounded by both entry count
+(default 256) and cumulative byte size (default 64 MB). Provides Stats
+(hits/misses) for the metrics pipeline.
 
 ### pkg/budget
 
 Two types: `Store` (persisted sessions) and `Budget` (in-memory policy).
+The optional `Flusher` debounces saves to one write per `interval` (default
+2s); trip conditions force an immediate flush.
 
 The `Store` holds `Session` entries keyed by `session_id`. Each session tracks:
 
@@ -120,7 +149,7 @@ The `Store` holds `Session` entries keyed by `session_id`. Each session tracks:
 3. Run loop detection: count trailing consecutive matches of normalized action.
 4. Check cost limit.
 5. Check token limit.
-6. Persist session atomically (write to `*.tmp` then rename).
+6. Mark dirty (flusher persists) or force-save on trip.
 
 If any limit trips, the returned status has `Allowed=false, Tripped=true, Reason=...`
 and the dispatcher surfaces that as `isError=true` in the JSON-RPC response.
@@ -140,15 +169,50 @@ can detect content drift between calls.
 `CacheReady` is true when both the system and static layers exceed the
 1024-token minimum required by Anthropic / Google prompt caching.
 
+`RenderMarkdown` (in `markdown.go`) concatenates an `AlignedPayload` into a
+single cache-friendly markdown document with explicit `<!-- layer:N:name:hash -->`
+markers. `DedupRatio` quantifies bytes saved by deduping the static layer.
+
+### pkg/squeeze
+
+The flagship composer. `Squeeze(opts)` returns a `Result` containing:
+
+- Per-section (`system_rules`, `static_files`, `history`, `dynamic_input`)
+  content, token hints, and stable hashes.
+- `Combined`: plain-text concatenation separated by `---`.
+- `Markdown`: cache-friendly markdown with layer markers.
+- `TotalTokens` / `OriginalTokens` / `SavedTokens` / `SavedRatio`.
+- `CacheHits` / `CacheMisses` for observability.
+
+When `MaxTokens` is set and the total exceeds it, sections are trimmed in
+reverse priority order (history → static → system). Each section's
+`Truncated` flag is set when content was cut.
+
+File pruning is parallel; results are sorted alphabetically before joining
+to maximize provider cache stability. A `*cache.Cache` short-circuits repeat
+reads.
+
+### pkg/metrics
+
+Records `(session_id, tool, input_tokens, output_tokens)` observations and
+exposes them via:
+
+- `Recorder.Session(id)` — per-session summary.
+- `Recorder.Aggregate()` — global totals with a per-tool breakdown.
+
+A background flusher persists the snapshot to `~/.config/gist/metrics.json`
+every 2 seconds; `Stop()` performs a final synchronous flush.
+
 ### pkg/diff
 
 Two-phase git diff:
 
 1. `Fetch(opts)` runs `git diff --numstat -M --no-color HEAD` to get a fast
    per-file line-count summary. Output format: `<added>\t<removed>\t<path>`.
-2. `Enrich(cwd, base, files)` re-runs `git diff --unified=0 HEAD -- <path>` for
-   each file to extract function/type names modified and detect log-only /
-   comment-only changes.
+2. `EnrichParallel(cwd, base, files, maxWorkers)` runs a worker pool (up to 8
+   goroutines) re-executing `git diff --unified=0 HEAD -- <path>` for each
+   file in parallel, then extracts function/type names and detects
+   log-only / comment-only changes.
 
 Structural lines (package decls, function signatures, braces) are skipped when
 detecting log-only / comment-only changes.
@@ -159,7 +223,7 @@ JSON-RPC 2.0 over stdio. Implements:
 
 - `initialize` - returns protocol version + server info.
 - `ping` - returns `{status: "pong"}`.
-- `tools/list` - returns the four tool definitions.
+- `tools/list` - returns the six tool definitions.
 - `tools/call` - dispatches via `Dispatcher.Handle`.
 - `notifications/*` - silently ignored (no `id` means no response).
 
@@ -178,14 +242,17 @@ The `main()` function delegates to `run(args, stdin, stdout, stderr)` for
 testability. `run` handles:
 
 - `--version` / `--help` / `config` / `init` subcommands.
-- Default behavior: load config, open budget store, start MCP server.
+- Default behavior: load config, open budget store, start flusher, build
+  cache, start metrics recorder, start MCP server.
 
 The `init` subcommand writes a default config without starting the server.
 
 ## Persistence
 
-Both `config.json` and `sessions.json` are written atomically via temp-file +
-rename to prevent corruption on crash.
+`config.json`, `sessions.json`, and `metrics.json` are written atomically via
+temp-file + rename to prevent corruption on crash. The sessions store
+flushes every 2 seconds via the debounced flusher (trip conditions force
+immediate flush). Metrics flush on the same cadence.
 
 `configDirOnce` was removed in favor of a per-call check so tests can flip the
 directory without leaking state.
@@ -194,19 +261,24 @@ directory without leaking state.
 
 - `pkg/budget.Store` uses a `sync.Mutex` on the sessions map; each `Session`
   embeds its own `sync.Mutex`.
+- `pkg/budget.Flusher` serializes state via its own mutex; the underlying
+  `Store.Save` takes the store mutex.
+- `pkg/cache.Cache` is fully thread-safe (`container/list` + map + mutex).
 - `pkg/mcp.Server` serializes encoder writes with `sync.Mutex`; reads from
   stdin are inherently sequential.
-- `pkg/aligner` is pure-functional, no shared state.
-- `pkg/ast` / `pkg/diff` are pure-functional per call.
+- `pkg/squeeze` parallelizes per-file pruning with a goroutine per source.
+- `pkg/diff.EnrichParallel` uses a worker pool capped at 8 goroutines.
+- `pkg/aligner`, `pkg/ast` are pure-functional, no shared state.
 
-The concurrent test in `pkg/budget/concurrency_test.go` exercises 20 goroutines
-× 50 iterations against a single session to validate race-free accounting.
+The concurrent tests (`pkg/budget/concurrency_test.go`,
+`pkg/cache/cache_test.go`) exercise high goroutine counts against a single
+shared structure to validate race-free accounting.
 
 ## Testing Strategy
 
 - **Unit tests**: every package has `*_test.go` next to source.
-- **Fixtures**: `pkg/diff/git_test.go` builds real git repos in `t.TempDir()`
-  to exercise the full Fetch/Enrich pipeline.
+- **Fixtures**: `pkg/diff/git_test.go` and `pkg/diff/parallel_test.go` build
+  real git repos in `t.TempDir()` to exercise the full Fetch/Enrich pipeline.
 - **Race detector**: `go test -race ./...` runs in CI.
 - **Coverage**: target 85%+ overall; the table in the README shows the
   current state.
@@ -214,6 +286,6 @@ The concurrent test in `pkg/budget/concurrency_test.go` exercises 20 goroutines
 ## Future Work
 
 - Real BPE encoding via on-demand vocab download.
-- Tree-sitter integration for non-Go languages.
+- Tree-sitter integration for the long tail of non-Go languages.
 - Streaming MCP responses for very large diffs.
-- Per-session cost breakdown by tool.
+- Per-tool cost breakdown in `report_savings`.

@@ -45,6 +45,7 @@ type Budget struct {
 	costForTokensFn  func(prompt, completion, cached int64) float64
 	promptCostPerTok float64
 	store            *Store
+	flusher          *Flusher
 }
 
 // Options configures a new Budget.
@@ -55,6 +56,7 @@ type Options struct {
 	PromptPricePerMillion float64
 	CostFn                func(prompt, completion, cached int64) float64
 	Store                 *Store
+	Flusher               *Flusher
 }
 
 // NewBudget creates a Budget. CostFn defaults to
@@ -78,6 +80,7 @@ func NewBudget(opts Options) *Budget {
 		costForTokensFn:  costFn,
 		promptCostPerTok: opts.PromptPricePerMillion / 1_000_000.0,
 		store:            opts.Store,
+		flusher:          opts.Flusher,
 	}
 }
 
@@ -141,7 +144,7 @@ func (b *Budget) Check(sessionID, currentAction string, estimatedTokens int64) (
 		)
 		sess.Tripped = true
 		sess.TripCount++
-		_ = b.store.Save()
+		b.persist(true)
 		return status, nil
 	}
 
@@ -154,7 +157,7 @@ func (b *Budget) Check(sessionID, currentAction string, estimatedTokens int64) (
 		)
 		sess.Tripped = true
 		sess.TripCount++
-		_ = b.store.Save()
+		b.persist(true)
 		return status, nil
 	}
 
@@ -167,12 +170,29 @@ func (b *Budget) Check(sessionID, currentAction string, estimatedTokens int64) (
 		)
 		sess.Tripped = true
 		sess.TripCount++
-		_ = b.store.Save()
+		b.persist(true)
 		return status, nil
 	}
 
-	_ = b.store.Save()
+	b.persist(false)
 	return status, nil
+}
+
+// persist records the mutation. When force is true (trip conditions) the
+// store flushes immediately; otherwise the optional flusher debounces.
+func (b *Budget) persist(force bool) {
+	if b.store == nil {
+		return
+	}
+	if force {
+		_ = b.store.Save()
+		return
+	}
+	if b.flusher != nil {
+		b.flusher.Mark()
+		return
+	}
+	_ = b.store.Save()
 }
 
 func detectLoop(actions []Action, current string) (string, int) {

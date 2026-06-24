@@ -40,7 +40,7 @@ func TestRunVersion(t *testing.T) {
 	buf := make([]byte, 1024)
 	n, _ := out.Read(buf)
 	got := strings.TrimSpace(string(buf[:n]))
-	if !strings.Contains(got, "gist") || !strings.Contains(got, "0.1.0") {
+	if !strings.Contains(got, "gist") || !strings.Contains(got, "0.2.0") {
 		t.Errorf("unexpected version output: %q", got)
 	}
 }

@@ -121,21 +121,26 @@ func EstimateLines(text string) int {
 	return strings.Count(text, "\n") + 1
 }
 
-// TruncateToTokens returns text truncated to roughly maxTokens tokens. If
-// maxTokens is <= 0 the input is returned unchanged.
+// TruncateToTokens returns text truncated to roughly maxTokens tokens,
+// plus a fixed marker so callers can see the cut. The marker length is
+// accounted for so the returned string never exceeds maxTokens tokens.
 func TruncateToTokens(text string, maxTokens int, enc Encoding) string {
 	if maxTokens <= 0 {
 		return text
 	}
+	const marker = "\n// ... [truncated by gist]"
 	ratio := ratioFor(enc)
-	maxBytes := int(float64(maxTokens) * ratio)
+	maxBytes := int(float64(maxTokens)*ratio) - len(marker)
+	if maxBytes < 0 {
+		maxBytes = 0
+	}
 	if len(text) <= maxBytes {
 		return text
 	}
 	for maxBytes > 0 && !utf8.RuneStart(text[maxBytes]) {
 		maxBytes--
 	}
-	return text[:maxBytes] + "\n// ... [truncated by gist]"
+	return text[:maxBytes] + marker
 }
 
 func ratioFor(enc Encoding) float64 {

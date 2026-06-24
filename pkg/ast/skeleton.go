@@ -10,12 +10,13 @@ import (
 
 // SkeletonResult is the JSON payload returned by BuildSlim.
 type SkeletonResult struct {
-	FilePath   string `json:"file_path"`
-	Language   string `json:"language"`
-	Original   string `json:"original_content,omitempty"`
-	Slim       string `json:"slim_content"`
-	Truncated  bool   `json:"truncated"`
-	FocusedOut []string `json:"focused_out,omitempty"`
+	FilePath     string `json:"file_path"`
+	Language     string `json:"language"`
+	Original     string `json:"original_content,omitempty"`
+	OriginalSize int64  `json:"original_size_bytes,omitempty"`
+	Slim         string `json:"slim_content"`
+	Truncated    bool   `json:"truncated"`
+	FocusedOut   []string `json:"focused_out,omitempty"`
 }
 
 // BuildSlim reads filePath and returns its pruned form. For Go files it uses
@@ -59,6 +60,17 @@ func BuildSlim(filePath string, focusFunctions []string, maxLinesBody int) (*Ske
 			return nil, err
 		}
 		res.Slim = slim
+	} else if res.Language != "markdown" && res.Language != "json" &&
+		res.Language != "yaml" && res.Language != "toml" {
+		var buf strings.Builder
+		_, _ = reader.WriteTo(stringBuilderWriter{&buf})
+		slim := PruneNonGo(buf.String(), res.Language, maxLinesBody)
+		if maxLinesBody > 0 &&
+			(strings.Contains(slim, "[truncated by gist]") ||
+				strings.Count(slim, "\n") > maxLinesBody) {
+			res.Truncated = true
+		}
+		res.Slim = slim
 	} else {
 		var lines []string
 		scanner := bufio.NewScanner(reader)
@@ -83,8 +95,14 @@ func BuildSlim(filePath string, focusFunctions []string, maxLinesBody int) (*Ske
 
 	if info.Size() > 0 {
 		res.Original = fmt.Sprintf("%d bytes", info.Size())
+		res.OriginalSize = info.Size()
 	}
 	return res, nil
+}
+
+// DetectLanguage maps a file extension to a canonical language name.
+func DetectLanguage(path string) string {
+	return detectLanguage(path)
 }
 
 func detectLanguage(path string) string {

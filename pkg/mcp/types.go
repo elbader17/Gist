@@ -24,7 +24,7 @@ const ProtocolVersion = "2024-11-05"
 const ServerName = "gist"
 
 // ServerVersion is the Gist version string.
-const ServerVersion = "0.1.0"
+const ServerVersion = "0.2.0"
 
 // Request is a JSON-RPC 2.0 request envelope.
 type Request struct {
