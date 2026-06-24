@@ -1,11 +1,11 @@
 # Architecture
 
-This document describes the internal design of Gist (TokenLess).
+This document describes the internal design of Gist.
 
 ## Module Dependency Graph
 
 ```
-cmd/tokenless
+cmd/gist
     |
     +-- pkg/config
     +-- pkg/budget  -----> pkg/config
@@ -17,7 +17,7 @@ cmd/tokenless
     +-- pkg/tokenizer
 ```
 
-Each `pkg/` module is independently importable. `cmd/tokenless` wires them
+Each `pkg/` module is independently importable. `cmd/gist` wires them
 together into a single process.
 
 ## Data Flow
@@ -53,8 +53,8 @@ Client
 ### pkg/config
 
 Holds runtime configuration: cost limits, pricing, tokenizer encoding.
-Persisted as JSON at `~/.config/tokenless/config.json`. Override directory with
-`TOKENLESS_CONFIG_DIR`. Exposes `SetConfigDir` / `ResetConfigDir` for tests.
+Persisted as JSON at `~/.config/gist/config.json`. Override directory with
+`GIST_CONFIG_DIR`. Exposes `SetConfigDir` / `ResetConfigDir` for tests.
 
 ### pkg/tokenizer
 
@@ -155,7 +155,7 @@ Errors use standard JSON-RPC codes:
 The server is fully synchronous: one read, one write per request. Concurrent
 writes are serialized via `sync.Mutex` on the encoder.
 
-### cmd/tokenless
+### cmd/gist
 
 The `main()` function delegates to `run(args, stdin, stdout, stderr)` for
 testability. `run` handles:

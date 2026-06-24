@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/tokenless/tokenless/pkg/aligner"
-	"github.com/tokenless/tokenless/pkg/ast"
-	"github.com/tokenless/tokenless/pkg/budget"
-	"github.com/tokenless/tokenless/pkg/config"
-	"github.com/tokenless/tokenless/pkg/diff"
+	"github.com/elbader17/gist/pkg/aligner"
+	"github.com/elbader17/gist/pkg/ast"
+	"github.com/elbader17/gist/pkg/budget"
+	"github.com/elbader17/gist/pkg/config"
+	"github.com/elbader17/gist/pkg/diff"
 )
 
 // DefaultTools returns the four tools this server exposes.

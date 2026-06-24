@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tokenless/tokenless/pkg/config"
+	"github.com/elbader17/gist/pkg/config"
 )
 
 // Action is one recorded entry in a session's recent-actions ring buffer.

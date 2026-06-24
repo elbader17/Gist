@@ -24,7 +24,7 @@ import (
 //
 // It is exported as a const for testing but should not be relied upon by
 // external callers.
-const collapseMarker = "// ... [Cuerpo colapsado por TokenLess para optimizar contexto] ..."
+const collapseMarker = "// ... [Cuerpo colapsado por Gist para optimizar contexto] ..."
 
 // PruneOptions controls the Pruner behaviour.
 type PruneOptions struct {

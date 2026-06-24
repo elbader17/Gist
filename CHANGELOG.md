@@ -17,8 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `enforce_budget` - Cost / token / loop circuit breaker.
   - `align_context_cache` - 4-layer prompt reorder for prompt caching.
   - `fetch_diff_context` - Semantic git diff summary.
-- Configuration via `~/.config/tokenless/config.json`.
-- Session persistence at `~/.config/tokenless/sessions.json`.
+- Configuration via `~/.config/gist/config.json`.
+- Session persistence at `~/.config/gist/sessions.json`.
 - Comprehensive test suite: 7 packages, ~85% coverage.
 - Static binary build (`CGO_ENABLED=0`).
 - Race-detector clean.

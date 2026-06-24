@@ -21,7 +21,7 @@ import (
 const ProtocolVersion = "2024-11-05"
 
 // ServerName identifies this server to MCP clients.
-const ServerName = "tokenless"
+const ServerName = "gist"
 
 // ServerVersion is the Gist version string.
 const ServerVersion = "0.1.0"

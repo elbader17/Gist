@@ -1,3 +1,3 @@
-module github.com/tokenless/tokenless
+module github.com/elbader17/gist
 
 go 1.21

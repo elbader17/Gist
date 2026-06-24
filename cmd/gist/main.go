@@ -1,4 +1,4 @@
-// Command tokenless is the Gist MCP server entry point.
+// Command gist is the Gist MCP server entry point.
 //
 // It speaks JSON-RPC 2.0 over stdio and exposes four tools for LLM context
 // optimization: view_file_slim, enforce_budget, align_context_cache, and
@@ -6,25 +6,25 @@
 //
 // Usage:
 //
-//	tokenless              Run as MCP server (stdio JSON-RPC)
-//	tokenless --version    Print version
-//	tokenless --help       Print this help
-//	tokenless config       Print the resolved config file path
-//	tokenless init         Write default config to disk
+//	gist              Run as MCP server (stdio JSON-RPC)
+//	gist --version    Print version
+//	gist --help       Print this help
+//	gist config       Print the resolved config file path
+//	gist init         Write default config to disk
 package main
 
 import (
 	"fmt"
 	"os"
 
-	"github.com/tokenless/tokenless/pkg/budget"
-	"github.com/tokenless/tokenless/pkg/config"
-	"github.com/tokenless/tokenless/pkg/mcp"
+	"github.com/elbader17/gist/pkg/budget"
+	"github.com/elbader17/gist/pkg/config"
+	"github.com/elbader17/gist/pkg/mcp"
 )
 
 func main() {
 	if err := run(os.Args, os.Stdin, os.Stdout, os.Stderr); err != nil {
-		fmt.Fprintln(os.Stderr, "tokenless:", err)
+		fmt.Fprintln(os.Stderr, "gist:", err)
 		os.Exit(1)
 	}
 }
@@ -33,7 +33,7 @@ func run(args []string, stdin, stdout, stderr *os.File) error {
 	if len(args) > 1 {
 		switch args[1] {
 		case "--version", "-v":
-			fmt.Fprintln(stdout, "tokenless", mcp.ServerVersion)
+			fmt.Fprintln(stdout, "gist", mcp.ServerVersion)
 			return nil
 		case "--help", "-h":
 			printHelp(stdout)
@@ -84,12 +84,12 @@ func run(args []string, stdin, stdout, stderr *os.File) error {
 }
 
 func printHelp(w *os.File) {
-	fmt.Fprintln(w, "tokenless - Gist MCP server for context optimization")
+	fmt.Fprintln(w, "gist - Gist MCP server for context optimization")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  tokenless              Run as MCP server (stdio JSON-RPC)")
-	fmt.Fprintln(w, "  tokenless --version    Print version")
-	fmt.Fprintln(w, "  tokenless --help       Print this help")
-	fmt.Fprintln(w, "  tokenless config       Print the resolved config file path")
-	fmt.Fprintln(w, "  tokenless init         Write default config to disk")
+	fmt.Fprintln(w, "  gist              Run as MCP server (stdio JSON-RPC)")
+	fmt.Fprintln(w, "  gist --version    Print version")
+	fmt.Fprintln(w, "  gist --help       Print this help")
+	fmt.Fprintln(w, "  gist config       Print the resolved config file path")
+	fmt.Fprintln(w, "  gist init         Write default config to disk")
 }

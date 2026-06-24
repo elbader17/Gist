@@ -59,7 +59,7 @@ func (s *Server) dispatch(enc *json.Encoder, req *Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := enc.Encode(resp); err != nil {
-		fmt.Fprintln(os.Stderr, "tokenless: encode error:", err)
+		fmt.Fprintln(os.Stderr, "gist: encode error:", err)
 	}
 }
 

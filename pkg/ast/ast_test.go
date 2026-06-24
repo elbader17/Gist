@@ -203,7 +203,7 @@ func TestBuildSlimNonGoTruncates(t *testing.T) {
 	if !res.Truncated {
 		t.Error("expected truncated flag for 200 lines with limit 10")
 	}
-	if !strings.Contains(res.Slim, "[truncated by tokenless]") {
+	if !strings.Contains(res.Slim, "[truncated by gist]") {
 		t.Error("truncation marker missing")
 	}
 }

@@ -76,7 +76,7 @@ func BuildSlim(filePath string, focusFunctions []string, maxLinesBody int) (*Ske
 		if len(lines) > limit {
 			res.Truncated = true
 			lines = lines[:limit]
-			lines = append(lines, "// ... [truncated by tokenless]")
+			lines = append(lines, "// ... [truncated by gist]")
 		}
 		res.Slim = strings.Join(lines, "\n")
 	}

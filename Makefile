@@ -1,5 +1,5 @@
 GO ?= go
-BINARY ?= bin/tokenless
+BINARY ?= bin/gist
 PKG ?= ./...
 COVER_PROFILE ?= coverage.out
 
@@ -9,7 +9,7 @@ all: build
 
 ## build: compile the static binary
 build:
-	CGO_ENABLED=0 $(GO) build -o $(BINARY) ./cmd/tokenless
+	CGO_ENABLED=0 $(GO) build -o $(BINARY) ./cmd/gist
 
 ## test: run unit tests
 test:

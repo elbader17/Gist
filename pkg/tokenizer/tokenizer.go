@@ -135,7 +135,7 @@ func TruncateToTokens(text string, maxTokens int, enc Encoding) string {
 	for maxBytes > 0 && !utf8.RuneStart(text[maxBytes]) {
 		maxBytes--
 	}
-	return text[:maxBytes] + "\n// ... [truncated by tokenless]"
+	return text[:maxBytes] + "\n// ... [truncated by gist]"
 }
 
 func ratioFor(enc Encoding) float64 {

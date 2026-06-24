@@ -32,7 +32,7 @@ func withFiles(t *testing.T) (*os.File, *os.File, *os.File) {
 
 func TestRunVersion(t *testing.T) {
 	in, out, errOut := withFiles(t)
-	err := run([]string{"tokenless", "--version"}, in, out, errOut)
+	err := run([]string{"gist", "--version"}, in, out, errOut)
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
@@ -40,14 +40,14 @@ func TestRunVersion(t *testing.T) {
 	buf := make([]byte, 1024)
 	n, _ := out.Read(buf)
 	got := strings.TrimSpace(string(buf[:n]))
-	if !strings.Contains(got, "tokenless") || !strings.Contains(got, "0.1.0") {
+	if !strings.Contains(got, "gist") || !strings.Contains(got, "0.1.0") {
 		t.Errorf("unexpected version output: %q", got)
 	}
 }
 
 func TestRunHelp(t *testing.T) {
 	in, out, errOut := withFiles(t)
-	err := run([]string{"tokenless", "--help"}, in, out, errOut)
+	err := run([]string{"gist", "--help"}, in, out, errOut)
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
@@ -62,8 +62,8 @@ func TestRunHelp(t *testing.T) {
 
 func TestRunConfig(t *testing.T) {
 	in, out, errOut := withFiles(t)
-	t.Setenv("TOKENLESS_CONFIG_DIR", t.TempDir())
-	err := run([]string{"tokenless", "config"}, in, out, errOut)
+	t.Setenv("GIST_CONFIG_DIR", t.TempDir())
+	err := run([]string{"gist", "config"}, in, out, errOut)
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
@@ -79,9 +79,9 @@ func TestRunConfig(t *testing.T) {
 func TestRunInit(t *testing.T) {
 	in, out, errOut := withFiles(t)
 	dir := t.TempDir()
-	t.Setenv("TOKENLESS_CONFIG_DIR", dir)
+	t.Setenv("GIST_CONFIG_DIR", dir)
 
-	err := run([]string{"tokenless", "init"}, in, out, errOut)
+	err := run([]string{"gist", "init"}, in, out, errOut)
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
@@ -92,8 +92,8 @@ func TestRunInit(t *testing.T) {
 
 func TestRunServerEOF(t *testing.T) {
 	in, out, errOut := withFiles(t)
-	t.Setenv("TOKENLESS_CONFIG_DIR", t.TempDir())
-	err := run([]string{"tokenless"}, in, out, errOut)
+	t.Setenv("GIST_CONFIG_DIR", t.TempDir())
+	err := run([]string{"gist"}, in, out, errOut)
 	if err != nil {
 		t.Fatalf("run on empty stdin: %v", err)
 	}
@@ -101,13 +101,13 @@ func TestRunServerEOF(t *testing.T) {
 
 func TestRunInvalidFlag(t *testing.T) {
 	in, out, errOut := withFiles(t)
-	t.Setenv("TOKENLESS_CONFIG_DIR", t.TempDir())
+	t.Setenv("GIST_CONFIG_DIR", t.TempDir())
 
 	in.WriteString(`{"jsonrpc":"2.0","id":1,"method":"unknown/method"}`)
 	in.Sync()
 	in.Seek(0, 0)
 
-	err := run([]string{"tokenless"}, in, out, errOut)
+	err := run([]string{"gist"}, in, out, errOut)
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}

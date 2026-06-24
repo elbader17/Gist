@@ -1,7 +1,7 @@
 // Package config loads and persists the Gist runtime configuration.
 //
-// Configuration is stored as JSON at ~/.config/tokenless/config.json. Override
-// the directory at runtime with the TOKENLESS_CONFIG_DIR environment variable.
+// Configuration is stored as JSON at ~/.config/gist/config.json. Override
+// the directory at runtime with the GIST_CONFIG_DIR environment variable.
 //
 // # Schema
 //
@@ -61,8 +61,8 @@ func Default() *Config {
 // Resolution order:
 //
 //  1. SetConfigDir override (used by tests).
-//  2. TOKENLESS_CONFIG_DIR environment variable.
-//  3. $HOME/.config/tokenless
+//  2. GIST_CONFIG_DIR environment variable.
+//  3. $HOME/.config/gist
 func ConfigDir() (string, error) {
 	configDirMu.RLock()
 	override := configDirOverride
@@ -71,14 +71,14 @@ func ConfigDir() (string, error) {
 	if override != "" {
 		return override, nil
 	}
-	if dir := os.Getenv("TOKENLESS_CONFIG_DIR"); dir != "" {
+	if dir := os.Getenv("GIST_CONFIG_DIR"); dir != "" {
 		return dir, nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", errors.New("unable to determine home directory: " + err.Error())
 	}
-	return filepath.Join(home, ".config", "tokenless"), nil
+	return filepath.Join(home, ".config", "gist"), nil
 }
 
 // ConfigPath returns the absolute path to config.json.

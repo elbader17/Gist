@@ -378,7 +378,7 @@ func TestBudgetCheckActionRingBuffer(t *testing.T) {
 
 func resetSyncForTest(t *testing.T) {
 	t.Helper()
-	t.Setenv("TOKENLESS_CONFIG_DIR", t.TempDir())
+	t.Setenv("GIST_CONFIG_DIR", t.TempDir())
 }
 
 func mustStore(t *testing.T) *Store {

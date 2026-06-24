@@ -62,7 +62,7 @@ func TestCostForTokens(t *testing.T) {
 func withTempConfigDir(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	t.Setenv("TOKENLESS_CONFIG_DIR", dir)
+	t.Setenv("GIST_CONFIG_DIR", dir)
 	t.Cleanup(func() {
 		ResetConfigDir()
 	})

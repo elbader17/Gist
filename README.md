@@ -59,18 +59,18 @@ before it leaves your machine.
 ### From source
 
 ```
-go install github.com/tokenless/tokenless/cmd/tokenless@latest
+go install github.com/elbader17/gist/cmd/gist@latest
 ```
 
 ### Build locally
 
 ```
-git clone https://github.com/tokenless/tokenless
-cd tokenless
-CGO_ENABLED=0 go build -o bin/tokenless ./cmd/tokenless
+git clone https://github.com/elbader17/gist
+cd gist
+CGO_ENABLED=0 go build -o bin/gist ./cmd/gist
 ```
 
-The binary at `bin/tokenless` is fully static and ~5 MB.
+The binary at `bin/gist` is fully static and ~5 MB.
 
 ## Quick Start
 
@@ -82,7 +82,7 @@ Configure your MCP client (Claude Code, OpenCode, etc.) to spawn the binary:
 {
   "mcpServers": {
     "gist": {
-      "command": "/path/to/bin/tokenless",
+      "command": "/path/to/bin/gist",
       "args": []
     }
   }
@@ -95,10 +95,10 @@ described below.
 ### Standalone commands
 
 ```
-tokenless --version   # print version
-tokenless --help      # print help
-tokenless config      # print resolved config path
-tokenless init        # write default config to ~/.config/tokenless/config.json
+gist --version   # print version
+gist --help      # print help
+gist config      # print resolved config path
+gist init        # write default config to ~/.config/gist/config.json
 ```
 
 ## MCP Tools
@@ -122,7 +122,7 @@ collapsed for token efficiency.
 {
   "file_path": "/abs/path/to/file.go",
   "language": "go",
-  "slim_content": "package main\n\nfunc Add(a, b int) int {\n\t`// ... [Cuerpo colapsado por TokenLess para optimizar contexto] ...`\n}",
+  "slim_content": "package main\n\nfunc Add(a, b int) int {\n\t`// ... [Cuerpo colapsado por Gist para optimizar contexto] ...`\n}",
   "truncated": false
 }
 ```
@@ -244,8 +244,8 @@ The tool uses `git --numstat` for accurate per-file counts and re-runs
 
 ## Configuration
 
-Config is loaded from `~/.config/tokenless/config.json`. Override the directory
-with `TOKENLESS_CONFIG_DIR=<path>`.
+Config is loaded from `~/.config/gist/config.json`. Override the directory
+with `GIST_CONFIG_DIR=<path>`.
 
 ```json
 {
@@ -262,18 +262,18 @@ with `TOKENLESS_CONFIG_DIR=<path>`.
 }
 ```
 
-Sessions are persisted at `~/.config/tokenless/sessions.json`.
+Sessions are persisted at `~/.config/gist/sessions.json`.
 
 ## Architecture
 
 ```
-cmd/tokenless/main.go         CLI entrypoint, flag dispatch
+cmd/gist/main.go              CLI entrypoint, flag dispatch
 pkg/ast/                      Go AST pruning + skeleton generation
 pkg/aligner/                  Prompt caching layer reorder
 pkg/budget/                   Session tracking + circuit breaker
 pkg/config/                   Config load/save
 pkg/diff/                     Semantic git diff
-pkg/mcp/                      JSON-RPC MCP protocol handler
+pkg/mcp/                      JSON-RPC MCP protocol
 pkg/tokenizer/                Local token counting
 ```
 
@@ -308,7 +308,7 @@ make run         # build + run
 Or manually:
 
 ```
-CGO_ENABLED=0 go build -o bin/tokenless ./cmd/tokenless
+CGO_ENABLED=0 go build -o bin/gist ./cmd/gist
 go test -race ./...
 go test -cover ./...
 ```
@@ -325,8 +325,8 @@ Tests live next to the code they cover (`*_test.go`). Coverage by package:
 | `pkg/tokenizer`      | 90.9%    |
 | `pkg/ast`            | 89.5%    |
 | `pkg/mcp`            | 85.7%    |
-| `cmd/tokenless`      | 80.0%    |
-| `pkg/config`         | 70.4%    |
+| `cmd/gist`           | 80.0%    |
+| `pkg/config`         | 69.6%    |
 
 Run with race detector:
 

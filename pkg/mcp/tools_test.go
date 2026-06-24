@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/tokenless/tokenless/pkg/budget"
-	"github.com/tokenless/tokenless/pkg/config"
+	"github.com/elbader17/gist/pkg/budget"
+	"github.com/elbader17/gist/pkg/config"
 )
 
 func newDispatcher(t *testing.T) (*Dispatcher, *budget.Store) {
 	t.Helper()
-	t.Setenv("TOKENLESS_CONFIG_DIR", t.TempDir())
+	t.Setenv("GIST_CONFIG_DIR", t.TempDir())
 	cfg := config.Default()
 	store, err := budget.NewStore()
 	if err != nil {
@@ -51,7 +51,7 @@ func TestDispatcherViewFileSlimMissingFile(t *testing.T) {
 func TestDispatcherViewFileSlimGo(t *testing.T) {
 	d, _ := newDispatcher(t)
 	res, err := d.viewFileSlim(map[string]interface{}{
-		"file_path":     "/home/eduardo/project/Gist/cmd/tokenless/main.go",
+		"file_path":     "/home/eduardo/project/Gist/cmd/gist/main.go",
 		"max_lines_body": 0,
 	})
 	if err != nil {
@@ -151,7 +151,7 @@ func TestDispatcherUnknownTool(t *testing.T) {
 
 func TestDispatcherFetchDiffNotGit(t *testing.T) {
 	d, _ := newDispatcher(t)
-	t.Setenv("TOKENLESS_CONFIG_DIR", t.TempDir())
+	t.Setenv("GIST_CONFIG_DIR", t.TempDir())
 	_, err := d.fetchDiff(map[string]interface{}{
 		"cwd": "/nonexistent",
 	})

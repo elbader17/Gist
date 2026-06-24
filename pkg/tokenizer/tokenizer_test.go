@@ -131,7 +131,7 @@ func TestTruncateToTokens(t *testing.T) {
 		if len(got) >= len(long) {
 			t.Errorf("truncated len=%d should be < original=%d", len(got), len(long))
 		}
-		if !strings.HasSuffix(got, "[truncated by tokenless]") {
+		if !strings.HasSuffix(got, "[truncated by gist]") {
 			t.Error("truncated output missing marker")
 		}
 	})

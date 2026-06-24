@@ -12,8 +12,8 @@ Requirements:
 - GNU make (optional)
 
 ```
-git clone https://github.com/tokenless/tokenless
-cd tokenless
+git clone https://github.com/elbader17/gist
+cd gist
 go test ./...
 ```
 
