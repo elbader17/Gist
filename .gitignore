@@ -1,0 +1,30 @@
+# Build artifacts
+bin/
+dist/
+
+# Test artifacts
+*.test
+*.out
+coverage.txt
+coverage.html
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local config overrides
+.env
+.env.local
+
+# Local sessions / config created during manual testing
+*.local.json
+
+# Go workspace files
+go.work
+go.work.sum
