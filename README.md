@@ -92,6 +92,36 @@ Configure your MCP client (Claude Code, OpenCode, etc.) to spawn the binary:
 The server speaks JSON-RPC 2.0 over stdio. It registers the four tools
 described below.
 
+### Wrap any command (capture by default)
+
+```
+gist wrap -- claude
+gist wrap -- aider
+gist wrap --your-favorite-llm-cli
+```
+
+Every byte of stdin / stdout / stderr flowing through the wrapped command is
+captured to `~/.config/gist/captures/<timestamp>-<pid>.jsonl`. When the user
+input looks like a prompt (JSON, code block, long markdown), Gist runs the
+aligner on it and attaches the optimized payload to the recorded event.
+
+The wrap is **always on** by default — no agent opt-in required. Add a shell
+alias to make it permanent:
+
+```sh
+alias claude='gist wrap -- claude'
+alias aider='gist wrap -- aider'
+```
+
+Flags:
+
+| Flag         | Description                              |
+|--------------|------------------------------------------|
+| `--dir PATH` | Override the capture directory           |
+| `--quiet`    | Suppress informational messages on stderr|
+
+Override the capture directory via `GIST_CAPTURES_DIR`.
+
 ### Standalone commands
 
 ```
@@ -99,6 +129,7 @@ gist --version   # print version
 gist --help      # print help
 gist config      # print resolved config path
 gist init        # write default config to ~/.config/gist/config.json
+gist wrap -- CMD [args...]   # capture I/O of CMD
 ```
 
 ## MCP Tools
@@ -267,10 +298,11 @@ Sessions are persisted at `~/.config/gist/sessions.json`.
 ## Architecture
 
 ```
-cmd/gist/main.go              CLI entrypoint, flag dispatch
+cmd/gist/main.go              CLI entrypoint, flag dispatch, wrap subcommand
 pkg/ast/                      Go AST pruning + skeleton generation
 pkg/aligner/                  Prompt caching layer reorder
 pkg/budget/                   Session tracking + circuit breaker
+pkg/capture/                  Transparent I/O capture + prompt detection
 pkg/config/                   Config load/save
 pkg/diff/                     Semantic git diff
 pkg/mcp/                      JSON-RPC MCP protocol
@@ -325,7 +357,8 @@ Tests live next to the code they cover (`*_test.go`). Coverage by package:
 | `pkg/tokenizer`      | 90.9%    |
 | `pkg/ast`            | 89.5%    |
 | `pkg/mcp`            | 85.7%    |
-| `cmd/gist`           | 80.0%    |
+| `pkg/capture`        | 75.4%    |
+| `cmd/gist`           | 71.0%    |
 | `pkg/config`         | 69.6%    |
 
 Run with race detector:

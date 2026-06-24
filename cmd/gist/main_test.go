@@ -32,9 +32,9 @@ func withFiles(t *testing.T) (*os.File, *os.File, *os.File) {
 
 func TestRunVersion(t *testing.T) {
 	in, out, errOut := withFiles(t)
-	err := run([]string{"gist", "--version"}, in, out, errOut)
-	if err != nil {
-		t.Fatalf("run: %v", err)
+	code := run([]string{"gist", "--version"}, in, out, errOut)
+	if code != 0 {
+		t.Fatalf("exit code = %d", code)
 	}
 	out.Seek(0, 0)
 	buf := make([]byte, 1024)
@@ -47,9 +47,9 @@ func TestRunVersion(t *testing.T) {
 
 func TestRunHelp(t *testing.T) {
 	in, out, errOut := withFiles(t)
-	err := run([]string{"gist", "--help"}, in, out, errOut)
-	if err != nil {
-		t.Fatalf("run: %v", err)
+	code := run([]string{"gist", "--help"}, in, out, errOut)
+	if code != 0 {
+		t.Fatalf("exit code = %d", code)
 	}
 	out.Seek(0, 0)
 	buf := make([]byte, 4096)
@@ -58,14 +58,17 @@ func TestRunHelp(t *testing.T) {
 	if !strings.Contains(got, "Usage") {
 		t.Errorf("help output missing Usage: %q", got)
 	}
+	if !strings.Contains(got, "gist wrap") {
+		t.Errorf("help output should mention wrap: %q", got)
+	}
 }
 
 func TestRunConfig(t *testing.T) {
 	in, out, errOut := withFiles(t)
 	t.Setenv("GIST_CONFIG_DIR", t.TempDir())
-	err := run([]string{"gist", "config"}, in, out, errOut)
-	if err != nil {
-		t.Fatalf("run: %v", err)
+	code := run([]string{"gist", "config"}, in, out, errOut)
+	if code != 0 {
+		t.Fatalf("exit code = %d", code)
 	}
 	out.Seek(0, 0)
 	buf := make([]byte, 1024)
@@ -81,9 +84,9 @@ func TestRunInit(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("GIST_CONFIG_DIR", dir)
 
-	err := run([]string{"gist", "init"}, in, out, errOut)
-	if err != nil {
-		t.Fatalf("run: %v", err)
+	code := run([]string{"gist", "init"}, in, out, errOut)
+	if code != 0 {
+		t.Fatalf("exit code = %d", code)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "config.json")); err != nil {
 		t.Errorf("expected config.json: %v", err)
@@ -93,9 +96,9 @@ func TestRunInit(t *testing.T) {
 func TestRunServerEOF(t *testing.T) {
 	in, out, errOut := withFiles(t)
 	t.Setenv("GIST_CONFIG_DIR", t.TempDir())
-	err := run([]string{"gist"}, in, out, errOut)
-	if err != nil {
-		t.Fatalf("run on empty stdin: %v", err)
+	code := run([]string{"gist"}, in, out, errOut)
+	if code != 0 {
+		t.Fatalf("exit code on empty stdin = %d", code)
 	}
 }
 
@@ -107,14 +110,57 @@ func TestRunInvalidFlag(t *testing.T) {
 	in.Sync()
 	in.Seek(0, 0)
 
-	err := run([]string{"gist"}, in, out, errOut)
-	if err != nil {
-		t.Fatalf("run: %v", err)
+	code := run([]string{"gist"}, in, out, errOut)
+	if code != 0 {
+		t.Fatalf("exit code = %d", code)
 	}
 	out.Seek(0, 0)
 	buf := make([]byte, 4096)
 	n, _ := out.Read(buf)
 	if !strings.Contains(string(buf[:n]), "Method not found") {
 		t.Errorf("expected method-not-found in output, got %q", string(buf[:n]))
+	}
+}
+
+func TestParseWrapArgs(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantCmd string
+		wantArg string
+		wantDir string
+		wantQ   bool
+		wantErr bool
+	}{
+		{"basic", []string{"--", "echo", "hi"}, "echo", "hi", "", false, false},
+		{"no dash", []string{"echo", "hi"}, "echo", "hi", "", false, false},
+		{"quiet", []string{"--quiet", "--", "echo"}, "echo", "", "", true, false},
+		{"dir", []string{"--dir", "/tmp/x", "--", "echo"}, "echo", "", "/tmp/x", false, false},
+		{"dir missing arg", []string{"--dir"}, "", "", "", false, true},
+		{"unknown flag", []string{"--foo"}, "", "", "", false, true},
+		{"no command", []string{"--"}, "", "", "", false, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd, args, opts, err := parseWrapArgs(tt.args)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err = %v, wantErr = %v", err, tt.wantErr)
+			}
+			if tt.wantErr {
+				return
+			}
+			if cmd != tt.wantCmd {
+				t.Errorf("cmd = %q, want %q", cmd, tt.wantCmd)
+			}
+			if len(args) > 0 && args[0] != tt.wantArg {
+				t.Errorf("args[0] = %q, want %q", args[0], tt.wantArg)
+			}
+			if opts.Dir != tt.wantDir {
+				t.Errorf("opts.Dir = %q, want %q", opts.Dir, tt.wantDir)
+			}
+			if opts.Quiet != tt.wantQ {
+				t.Errorf("opts.Quiet = %v, want %v", opts.Quiet, tt.wantQ)
+			}
+		})
 	}
 }

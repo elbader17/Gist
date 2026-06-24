@@ -6,16 +6,19 @@
 //
 // Usage:
 //
-//	gist              Run as MCP server (stdio JSON-RPC)
-//	gist --version    Print version
-//	gist --help       Print this help
-//	gist config       Print the resolved config file path
-//	gist init         Write default config to disk
+//	gist                    Run as MCP server (stdio JSON-RPC)
+//	gist --version          Print version
+//	gist --help             Print this help
+//	gist config             Print the resolved config file path
+//	gist init               Write default config to disk
+//	gist wrap [opts] -- <cmd> [args...]
+//	                        Run <cmd> with transparent I/O capture
 package main
 
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/elbader17/gist/pkg/budget"
 	"github.com/elbader17/gist/pkg/config"
@@ -23,50 +26,60 @@ import (
 )
 
 func main() {
-	if err := run(os.Args, os.Stdin, os.Stdout, os.Stderr); err != nil {
-		fmt.Fprintln(os.Stderr, "gist:", err)
-		os.Exit(1)
+	if code := run(os.Args, os.Stdin, os.Stdout, os.Stderr); code != 0 {
+		os.Exit(code)
 	}
 }
 
-func run(args []string, stdin, stdout, stderr *os.File) error {
+func run(args []string, stdin, stdout, stderr *os.File) int {
 	if len(args) > 1 {
 		switch args[1] {
 		case "--version", "-v":
 			fmt.Fprintln(stdout, "gist", mcp.ServerVersion)
-			return nil
+			return 0
 		case "--help", "-h":
 			printHelp(stdout)
-			return nil
+			return 0
 		case "config":
 			path, err := config.ConfigPath()
 			if err != nil {
-				return err
+				fmt.Fprintln(stderr, "gist:", err)
+				return 1
 			}
 			fmt.Fprintln(stdout, path)
-			return nil
+			return 0
 		case "init":
 			cfg := config.Default()
 			if err := cfg.Save(); err != nil {
-				return err
+				fmt.Fprintln(stderr, "gist:", err)
+				return 1
 			}
 			path, err := config.ConfigPath()
 			if err != nil {
-				return err
+				fmt.Fprintln(stderr, "gist:", err)
+				return 1
 			}
 			fmt.Fprintln(stdout, "config written to", path)
-			return nil
+			return 0
+		case "wrap":
+			return runWrap(args[2:], WrapOptions{
+				Stdin:  stdin,
+				Stdout: stdout,
+				Stderr: stderr,
+			})
 		}
 	}
 
 	cfg, err := config.Load()
 	if err != nil {
-		return fmt.Errorf("load config: %w", err)
+		fmt.Fprintln(stderr, "gist: load config:", err)
+		return 1
 	}
 
 	store, err := budget.NewStore()
 	if err != nil {
-		return fmt.Errorf("open sessions store: %w", err)
+		fmt.Fprintln(stderr, "gist: open sessions store:", err)
+		return 1
 	}
 
 	b := budget.NewBudget(budget.Options{
@@ -80,16 +93,67 @@ func run(args []string, stdin, stdout, stderr *os.File) error {
 
 	dispatcher := &mcp.Dispatcher{Cfg: cfg, Budget: b}
 	server := mcp.NewServer(stdin, stdout, mcp.DefaultTools(), dispatcher.Handle)
-	return server.Run()
+	if err := server.Run(); err != nil {
+		fmt.Fprintln(stderr, "gist: server:", err)
+		return 1
+	}
+	return 0
+}
+
+func runWrap(args []string, opts WrapOptions) int {
+	opts.Stdin = nil
+	opts.Stdout = nil
+	opts.Stderr = nil
+	command, cmdArgs, wrapOpts, err := parseWrapArgs(args)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "gist wrap:", err)
+		return 1
+	}
+	wrapOpts.Stdin = os.Stdin
+	wrapOpts.Stdout = os.Stdout
+	wrapOpts.Stderr = os.Stderr
+	return RunWrap(command, cmdArgs, wrapOpts)
+}
+
+func parseWrapArgs(args []string) (string, []string, WrapOptions, error) {
+	opts := WrapOptions{}
+	for len(args) > 0 && strings.HasPrefix(args[0], "--") {
+		switch args[0] {
+		case "--":
+			args = args[1:]
+			goto done
+		case "--dir":
+			if len(args) < 2 {
+				return "", nil, opts, fmt.Errorf("--dir requires a path argument")
+			}
+			opts.Dir = args[1]
+			args = args[2:]
+		case "--quiet", "-q":
+			opts.Quiet = true
+			args = args[1:]
+		default:
+			return "", nil, opts, fmt.Errorf("unknown flag %q", args[0])
+		}
+	}
+done:
+	if len(args) == 0 {
+		return "", nil, opts, fmt.Errorf("missing command after `--`")
+	}
+	return args[0], args[1:], opts, nil
 }
 
 func printHelp(w *os.File) {
 	fmt.Fprintln(w, "gist - Gist MCP server for context optimization")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  gist              Run as MCP server (stdio JSON-RPC)")
-	fmt.Fprintln(w, "  gist --version    Print version")
-	fmt.Fprintln(w, "  gist --help       Print this help")
-	fmt.Fprintln(w, "  gist config       Print the resolved config file path")
-	fmt.Fprintln(w, "  gist init         Write default config to disk")
+	fmt.Fprintln(w, "  gist                      Run as MCP server (stdio JSON-RPC)")
+	fmt.Fprintln(w, "  gist --version            Print version")
+	fmt.Fprintln(w, "  gist --help               Print this help")
+	fmt.Fprintln(w, "  gist config               Print the resolved config file path")
+	fmt.Fprintln(w, "  gist init                 Write default config to disk")
+	fmt.Fprintln(w, "  gist wrap [opts] -- CMD    Run CMD with transparent I/O capture")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Wrap options:")
+	fmt.Fprintln(w, "  --dir <path>    Override capture directory")
+	fmt.Fprintln(w, "  --quiet, -q     Suppress informational messages")
 }

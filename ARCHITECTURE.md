@@ -9,6 +9,7 @@ cmd/gist
     |
     +-- pkg/config
     +-- pkg/budget  -----> pkg/config
+    +-- pkg/capture
     +-- pkg/mcp     -----> pkg/aligner
                      +--> pkg/ast
                      +--> pkg/budget
@@ -47,6 +48,22 @@ ToolCallResult {content: [{type:"text", text:"..."}]}
     v stdout JSON-RPC
 Client
 ```
+
+### pkg/capture
+
+Transparent I/O capture used by the `gist wrap` subcommand. Each session
+opens a JSONL file at `<configdir>/captures/<timestamp>-<pid>.jsonl` and
+writes:
+
+1. A `SessionHeader` describing the wrapped command and PID.
+2. One `CaptureEvent` per chunk of stdin / stdout / stderr.
+3. A `SessionSummary` with byte counters, exit code, and prompt count.
+
+`IsLikelyPrompt` (in `detect.go`) flags user input that looks like an LLM
+prompt: JSON payloads (OpenAI/Anthropic API requests), markdown code fences,
+headings, or any block longer than 400 chars. When flagged, the event is
+augmented with an `aligner.AlignedPayload` so the optimized layout is
+preserved alongside the original input for later inspection.
 
 ## Module Details
 

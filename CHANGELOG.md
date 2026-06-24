@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `gist wrap -- CMD` subcommand: transparent I/O capture for any command.
+- `pkg/capture`: JSONL session writer, prompt detection, aligner integration.
+- Capture files at `~/.config/gist/captures/<timestamp>-<pid>.jsonl`.
+
 ## [0.1.0] - 2026-06-24
 
 ### Added
