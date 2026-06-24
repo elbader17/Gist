@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gist - LLM Context Optimization for MCP</title>
+<meta name="description" content="High-performance Go MCP server that prunes, restructures, and budgets LLM context. 65-94% token savings, zero dependencies, static binary.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230a0a0a'/%3E%3Ctext x='50' y='68' font-family='ui-monospace,SFMono-Regular,Menlo,monospace' font-size='52' font-weight='700' text-anchor='middle' fill='%2310b981'%3Eg%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="#">
+      <span class="brand-mark">g</span>
+      <span class="brand-name">gist</span>
+      <span class="brand-tag">v0.2.0</span>
+    </a>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#tools">MCP Tools</a>
+      <a href="#perf">Performance</a>
+      <a href="#install">Install</a>
+      <a class="gh-link" href="https://github.com/elbader17/Gist" target="_blank" rel="noopener">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1.1-.7.1-.7.1-.7 1.2 0 1.9 1.3 1.9 1.3 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-6 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.7 18.3 5 18.3 5c.6 1.7.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.7-2.8 5.7-5.5 6 .4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .3"/></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-inner">
+    <div class="hero-badges">
+      <span class="badge sev-low">Go 1.21+</span>
+      <span class="badge sev-low">Zero deps</span>
+      <span class="badge sev-low">5 MB static binary</span>
+      <span class="badge sev-low">Race-clean</span>
+    </div>
+    <h1>Cut LLM context by <span class="grad">65&ndash;94%</span>.</h1>
+    <p class="lede">Gist is a high-performance Go MCP server that sits between agentic clients (Claude Code, OpenCode, Aider) and your filesystem to <strong>prune</strong>, <strong>restructure</strong>, and <strong>budget</strong> the information sent to the model.</p>
+    <div class="cta-row">
+      <a class="btn-primary" href="#install">Install</a>
+      <a class="btn-secondary" href="https://github.com/elbader17/Gist#readme" target="_blank" rel="noopener">Read the docs</a>
+      <a class="btn-secondary" href="https://github.com/elbader17/Gist" target="_blank" rel="noopener">Source</a>
+    </div>
+    <div class="install-snippet">
+      <span class="prompt">$</span><code>go install github.com/elbader17/gist/cmd/gist@latest</code>
+      <button class="copy-btn" data-copy="go install github.com/elbader17/gist/cmd/gist@latest" aria-label="Copy">copy</button>
+    </div>
+  </div>
+</header>
+
+<section id="problem" class="section">
+  <div class="section-inner">
+    <h2 class="section-title">The problem</h2>
+    <p class="section-sub">Modern agentic coding tools have a new bottleneck: <em>unnecessary context saturation</em>.</p>
+    <div class="grid-3">
+      <div class="panel-base">
+        <div class="panel-icon">&#x1F4D6;</div>
+        <h3>Whole files</h3>
+        <p class="text-body">Agents read entire files of thousands of lines when signatures and types would suffice.</p>
+      </div>
+      <div class="panel-base">
+        <div class="panel-icon">&#x1F4E2;</div>
+        <h3>Massive build logs</h3>
+        <p class="text-body">Multi-megabyte compiler output injected into every prompt.</p>
+      </div>
+      <div class="panel-base">
+        <div class="panel-icon">&#x1F504;</div>
+        <h3>Runaway loops</h3>
+        <p class="text-body">Agents retry the same failing test indefinitely, burning budget with no progress.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="features" class="section">
+  <div class="section-inner">
+    <h2 class="section-title">Six tools. One goal: <span class="grad">spend fewer tokens</span>.</h2>
+    <div class="grid-3">
+      <div class="panel-base">
+        <h3>AST-aware pruning</h3>
+        <p class="text-body">Go files collapse via <code>go/parser</code> + <code>go/printer</code>. Multi-language signature-only pruning for Python, JS, TS, Rust, Java, C/C++, Ruby.</p>
+      </div>
+      <div class="panel-base">
+        <h3>LRU prune cache</h3>
+        <p class="text-body">Keyed by <code>(path, mtime, size)</code>. Repeat reads return &lt;1ms with a <code>cache_hit</code> flag.</p>
+      </div>
+      <div class="panel-base">
+        <h3>One-call optimizer</h3>
+        <p class="text-body"><code>squeeze_context</code> prunes, aligns, and caps tokens in a single round-trip. Returns combined prompt + savings metrics.</p>
+      </div>
+      <div class="panel-base">
+        <h3>Cache-friendly markdown</h3>
+        <p class="text-body">Aligned output uses stable per-layer hashes so provider-side prompt caches reuse the prefix across calls.</p>
+      </div>
+      <div class="panel-base">
+        <h3>Parallel diff enrichment</h3>
+        <p class="text-body">Worker pool (up to 8 goroutines) replaces serial per-file <code>git diff</code>. ~2x faster on multi-file changes.</p>
+      </div>
+      <div class="panel-base">
+        <h3>Loop circuit breaker</h3>
+        <p class="text-body">Detects repeated actions, cost ceilings, and token ceilings. Sessions persist via a 2s debounced flusher.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="tools" class="section">
+  <div class="section-inner">
+    <h2 class="section-title">MCP Tools</h2>
+    <p class="section-sub">Registered automatically on stdio JSON-RPC. Configure your client once.</p>
+    <div class="tool-grid">
+      <div class="tool-card">
+        <div class="tool-head">
+          <code>view_file_slim</code>
+          <span class="badge sev-low">cache-aware</span>
+        </div>
+        <p class="text-body">Prune a file to signatures. Go files via AST; other languages via signature-only extraction.</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-head">
+          <code>enforce_budget</code>
+          <span class="badge sev-medium">circuit breaker</span>
+        </div>
+        <p class="text-body">Track session cost/tokens; halt runaway loops before they burn the budget.</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-head">
+          <code>align_context_cache</code>
+          <span class="badge sev-low">cache</span>
+        </div>
+        <p class="text-body">Reorder prompt components into 4 layers and return markdown with stable hashes.</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-head">
+          <code>fetch_diff_context</code>
+          <span class="badge sev-low">parallel</span>
+        </div>
+        <p class="text-body">Replace raw <code>git diff</code> with semantic summaries and log/comment-only detection.</p>
+      </div>
+      <div class="tool-card highlight">
+        <div class="tool-head">
+          <code>squeeze_context</code>
+          <span class="badge sev-high">flagship</span>
+        </div>
+        <p class="text-body">One-call optimizer: prune + align + cap. Returns a single ready-to-send prompt and savings metrics.</p>
+      </div>
+      <div class="tool-card highlight">
+        <div class="tool-head">
+          <code>report_savings</code>
+          <span class="badge sev-low">telemetry</span>
+        </div>
+        <p class="text-body">Cumulative token-savings telemetry per session and per tool, persisted across restarts.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="perf" class="section">
+  <div class="section-inner">
+    <h2 class="section-title">Measured savings</h2>
+    <p class="section-sub">Benchmarked on the project's own 39-file Go corpus, 1000-line equivalent files.</p>
+    <div class="metric-grid">
+      <div class="metric-tile">
+        <div class="metric-label">End-to-end</div>
+        <div class="metric-value grad">65.9%</div>
+        <div class="metric-note">24,164 &rarr; 8,246 tokens</div>
+      </div>
+      <div class="metric-tile">
+        <div class="metric-label">With provider cache</div>
+        <div class="metric-value grad">94%</div>
+        <div class="metric-note">static layer at $0.30/M</div>
+      </div>
+      <div class="metric-tile">
+        <div class="metric-label">view_file_slim (warm)</div>
+        <div class="metric-value grad">&lt;1ms</div>
+        <div class="metric-note">vs ~3ms cold parse</div>
+      </div>
+      <div class="metric-tile">
+        <div class="metric-label">fetch_diff_context</div>
+        <div class="metric-value grad">~2x</div>
+        <div class="metric-note">parallel enrichment</div>
+      </div>
+    </div>
+    <div class="savings-chart" aria-label="Per-file savings distribution">
+      <div class="bar" style="--h: 82%"><span>82%</span></div>
+      <div class="bar" style="--h: 85%"><span>85%</span></div>
+      <div class="bar" style="--h: 75%"><span>75%</span></div>
+      <div class="bar" style="--h: 70%"><span>70%</span></div>
+      <div class="bar" style="--h: 60%"><span>60%</span></div>
+      <div class="bar" style="--h: 55%"><span>55%</span></div>
+      <div class="bar" style="--h: 45%"><span>45%</span></div>
+      <div class="bar" style="--h: 53%"><span>53%</span></div>
+      <div class="bar" style="--h: 80%"><span>80%</span></div>
+      <div class="bar" style="--h: 70%"><span>70%</span></div>
+      <div class="bar" style="--h: 65%"><span>65%</span></div>
+      <div class="bar" style="--h: 37%"><span>37%</span></div>
+    </div>
+    <p class="chart-note">Per-file savings (largest 12 files). Y-axis: tokens saved relative to raw source.</p>
+  </div>
+</section>
+
+<section id="install" class="section">
+  <div class="section-inner">
+    <h2 class="section-title">Install &amp; run</h2>
+    <div class="install-grid">
+      <div class="install-card">
+        <h3>As MCP server</h3>
+        <pre class="code-block">{
+  "mcpServers": {
+    "gist": {
+      "command": "/usr/local/bin/gist",
+      "args": []
+    }
+  }
+}</pre>
+      </div>
+      <div class="install-card">
+        <h3>Wrap any command</h3>
+        <pre class="code-block"><span class="prompt">$</span> gist wrap -- claude
+<span class="prompt">$</span> gist wrap -- aider
+
+<span class="comment"># every prompt captured, aligned, and persisted to</span>
+<span class="comment"># ~/.config/gist/captures/&lt;ts&gt;-&lt;pid&gt;.jsonl</span>
+
+<span class="comment"># shell alias for permanent capture:</span>
+alias claude='gist wrap -- claude'</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="arch" class="section">
+  <div class="section-inner">
+    <h2 class="section-title">Architecture</h2>
+    <p class="section-sub">Single static binary. Zero dependencies. CGO_ENABLED=0.</p>
+    <div class="arch-grid">
+      <div class="arch-col">
+        <h4>Core</h4>
+        <ul>
+          <li><code>pkg/ast</code> &mdash; Go AST + multi-language pruner</li>
+          <li><code>pkg/aligner</code> &mdash; 4-layer reorder + markdown</li>
+          <li><code>pkg/tokenizer</code> &mdash; BPE-style counting</li>
+        </ul>
+      </div>
+      <div class="arch-col">
+        <h4>Persistence</h4>
+        <ul>
+          <li><code>pkg/budget</code> &mdash; sessions + debounced flush</li>
+          <li><code>pkg/metrics</code> &mdash; savings telemetry</li>
+          <li><code>pkg/config</code> &mdash; JSON config</li>
+        </ul>
+      </div>
+      <div class="arch-col">
+        <h4>Efficiency</h4>
+        <ul>
+          <li><code>pkg/cache</code> &mdash; LRU prune cache</li>
+          <li><code>pkg/squeeze</code> &mdash; one-call optimizer</li>
+          <li><code>pkg/diff</code> &mdash; parallel enrich</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-left">
+      <span class="brand-mark small">g</span>
+      <span class="brand-name">gist</span>
+      <span class="muted">&copy; 2026 MIT</span>
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/elbader17/Gist" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/elbader17/Gist/blob/main/ARCHITECTURE.md" target="_blank" rel="noopener">Architecture</a>
+      <a href="https://github.com/elbader17/Gist/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
+      <a href="https://github.com/elbader17/Gist/blob/main/LICENSE" target="_blank" rel="noopener">License</a>
+    </div>
+  </div>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
